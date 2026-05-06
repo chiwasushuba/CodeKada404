@@ -30,6 +30,36 @@ class UploadBatchResponse(BaseModel):
     status: str = Field(default="success", description="Batch upload status")
 
 
+class UploadedFileItem(BaseModel):
+    """Single uploaded file entry returned for the knowledge page."""
+
+    file_name: str = Field(..., description="Uploaded file name")
+    r2_path: str = Field(..., description="Object key in Cloudflare R2")
+    size: int = Field(..., description="File size in bytes")
+    uploaded_at: str = Field(..., description="Timestamp when the file was uploaded")
+
+
+class UploadedFilesResponse(BaseModel):
+    """Response containing all files already uploaded to R2."""
+
+    files: list[UploadedFileItem] = Field(
+        default_factory=list, description="Previously uploaded files"
+    )
+    total_files: int = Field(..., description="Total uploaded file count")
+    status: str = Field(default="success", description="Response status")
+
+
+class DeleteFileResponse(BaseModel):
+    """Response after deleting an uploaded file."""
+
+    file_name: str = Field(..., description="Deleted file name")
+    r2_path: str = Field(..., description="Deleted R2 object key")
+    deleted_vectors: int = Field(
+        default=0, description="Number of Pinecone vectors deleted"
+    )
+    status: str = Field(default="success", description="Deletion status")
+
+
 # ============= CHAT ENDPOINT =============
 
 

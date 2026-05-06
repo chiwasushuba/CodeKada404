@@ -84,6 +84,27 @@ class VectorService:
             print(f"✗ Error deleting vectors: {e}")
             raise
 
+    async def delete_vectors_by_filter(
+        self, metadata_filter: dict, namespace: str = "default"
+    ) -> dict:
+        """
+        Delete vectors from Pinecone using a metadata filter.
+
+        Args:
+            metadata_filter: Pinecone metadata filter, e.g. {"r2_path": "uploads/..."}
+            namespace: Namespace to delete from
+
+        Returns:
+            Response from Pinecone API
+        """
+        try:
+            response = self.index.delete(namespace=namespace, filter=metadata_filter)
+            print(f"✓ Deleted vectors with filter {metadata_filter}")
+            return response
+        except Exception as e:
+            print(f"✗ Error deleting vectors with filter: {e}")
+            raise
+
     async def get_index_stats(self) -> dict:
         """
         Get statistics about the Pinecone index.

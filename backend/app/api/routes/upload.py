@@ -13,13 +13,74 @@ from xml.etree import ElementTree as ET
 from charset_normalizer import from_bytes
 from pypdf import PdfReader
 
-from app.models.schemas import UploadResponse, UploadBatchResponse
+from app.models.schemas import (
+    UploadResponse,
+    UploadBatchResponse,
+    DeleteFileResponse,
+    UploadedFileItem,
+    UploadedFilesResponse,
+)
 from app.services.storage_service import StorageService, get_storage_service
 from app.services.llm_service import LLMService, get_llm_service
 from app.services.vector_service import VectorService, get_vector_service
 from app.services.db_service import DatabaseService, get_db_service
 
 router = APIRouter(prefix="/api", tags=["upload"])
+
+
+@router.get("/upload/files", response_model=UploadedFilesResponse)
+async def list_uploaded_files(
+    storage_service: StorageService = Depends(get_storage_service),
+):
+    """List files already uploaded to R2 for the knowledge page."""
+    try:
+        objects = await storage_service.list_files(prefix="uploads/")
+        files = []
+
+        for obj in sorted(objects, key=lambda item: item.get("modified", ""), reverse=True):
+            key = obj.get("key", "")
+            file_name = _display_file_name_from_key(key)
+            files.append(
+                UploadedFileItem(
+                    file_name=file_name,
+                    r2_path=key,
+                    size=int(obj.get("size", 0)),
+                    uploaded_at=obj.get("modified", ""),
+                )
+            )
+
+        return UploadedFilesResponse(files=files, total_files=len(files), status="success")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list uploaded files: {str(e)}")
+
+
+@router.delete("/upload/files", response_model=DeleteFileResponse)
+async def delete_uploaded_file(
+    r2_path: str,
+    storage_service: StorageService = Depends(get_storage_service),
+    vector_service: VectorService = Depends(get_vector_service),
+):
+    """Delete a single uploaded file and its indexed vectors."""
+    try:
+        file_name = _display_file_name_from_key(r2_path)
+
+        await storage_service.delete_file(r2_path)
+        vector_delete_result = await vector_service.delete_vectors_by_filter(
+            {"r2_path": {"$eq": r2_path}}
+        )
+
+        deleted_vectors = 0
+        if isinstance(vector_delete_result, dict):
+            deleted_vectors = int(vector_delete_result.get("deleted_count", 0))
+
+        return DeleteFileResponse(
+            file_name=file_name,
+            r2_path=r2_path,
+            deleted_vectors=deleted_vectors,
+            status="success",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 
 @router.post("/upload", response_model=UploadBatchResponse)
@@ -233,3 +294,13 @@ def _chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> list[s
         start += step
 
     return chunks or ["[No extractable text content]"]
+
+
+def _display_file_name_from_key(r2_path: str) -> str:
+    """Convert an uploaded R2 object key back to the original file name for display."""
+    if not r2_path:
+        return "Unknown"
+
+    key = r2_path.split("/")[-1]
+    _, separator, original_name = key.partition("_")
+    return original_name if separator and original_name else key
