@@ -20,6 +20,16 @@ class UploadResponse(BaseModel):
     status: str = Field(default="success", description="Upload status")
 
 
+class UploadBatchResponse(BaseModel):
+    """Response from a batch file upload request."""
+
+    files: list[UploadResponse] = Field(
+        default_factory=list, description="Per-file upload results"
+    )
+    total_files: int = Field(..., description="Total number of uploaded files")
+    status: str = Field(default="success", description="Batch upload status")
+
+
 # ============= CHAT ENDPOINT =============
 
 

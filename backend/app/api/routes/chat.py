@@ -38,7 +38,9 @@ async def chat(
     """
     try:
         # ============= 1. Generate Embedding for Question =============
-        question_embedding = await llm_service.generate_embeddings(request.question)
+        question_embedding = await llm_service.generate_embeddings(
+            request.question, task_type="retrieval_query"
+        )
 
         # ============= 2. Search Pinecone for Context =============
         search_results = await vector_service.query_vectors(
@@ -59,11 +61,18 @@ async def chat(
         for result in search_results:
             metadata = result.get("metadata", {})
             file_name = metadata.get("file_name", "Unknown")
+            chunk_index = metadata.get("chunk_index", "n/a")
+            chunk_text = metadata.get("chunk_text") or metadata.get("text_preview")
             sources.append(file_name)
 
-            # TODO: Retrieve full document content from database if needed
-            # For now, using metadata
-            context_parts.append(f"Source: {file_name}\nContent: {str(metadata)}")
+            if chunk_text:
+                context_parts.append(
+                    f"Source: {file_name} (chunk {chunk_index})\nContent: {chunk_text}"
+                )
+            else:
+                context_parts.append(
+                    f"Source: {file_name} (chunk {chunk_index})\nContent: {str(metadata)}"
+                )
 
         context = "\n---\n".join(context_parts)
 

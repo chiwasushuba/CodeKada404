@@ -17,18 +17,18 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      // In a real app, you'd extract the reply from the backend JSON response
-      // e.g., const res = await sendChatMessage(userMessage);
-      // const reply = res.answer;
-      
-      // Mocking for now to test UI
-      setTimeout(() => {
-        setMessages(prev => [...prev, { role: 'bot', content: "Here is what I found in the documentation..." }]);
-        setLoading(false);
-      }, 1000);
-      
+      const res = await sendChatMessage(userMessage);
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'bot',
+          content: res.answer,
+        },
+      ]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'bot', content: "Error: Backend is sleeping or unreachable." }]);
+      const message = error instanceof Error ? error.message : 'Chat request failed.';
+      setMessages(prev => [...prev, { role: 'bot', content: `Error: ${message}` }]);
+    } finally {
       setLoading(false);
     }
   };

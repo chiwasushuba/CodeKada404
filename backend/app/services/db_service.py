@@ -4,6 +4,7 @@ Handles all database operations and connection management.
 """
 
 import motor.motor_asyncio
+from uuid import uuid4
 from app.core.config import settings
 
 
@@ -59,6 +60,9 @@ class DatabaseService:
         Returns:
             Inserted document ID as string
         """
+        if cls.database is None:
+            return f"mock-status-{uuid4()}"
+
         statuses_collection = cls.database["statuses"]
         result = await statuses_collection.insert_one(update_data)
         return str(result.inserted_id)
@@ -74,6 +78,9 @@ class DatabaseService:
         Returns:
             List of status update documents
         """
+        if cls.database is None:
+            return []
+
         statuses_collection = cls.database["statuses"]
         cursor = statuses_collection.find().sort("timestamp", -1).limit(limit)
         return await cursor.to_list(length=limit)
@@ -91,6 +98,9 @@ class DatabaseService:
         Returns:
             Inserted document ID as string
         """
+        if cls.database is None:
+            return f"mock-document-{uuid4()}"
+
         documents_collection = cls.database["documents"]
         result = await documents_collection.insert_one(metadata)
         return str(result.inserted_id)
@@ -106,6 +116,9 @@ class DatabaseService:
         Returns:
             Document metadata or None
         """
+        if cls.database is None:
+            return None
+
         documents_collection = cls.database["documents"]
         return await documents_collection.find_one({"file_name": file_name})
 

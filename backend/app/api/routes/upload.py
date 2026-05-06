@@ -7,8 +7,13 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from pathlib import Path
 import tempfile
 from datetime import datetime
+import zipfile
+from xml.etree import ElementTree as ET
 
-from app.models.schemas import UploadResponse
+from charset_normalizer import from_bytes
+from pypdf import PdfReader
+
+from app.models.schemas import UploadResponse, UploadBatchResponse
 from app.services.storage_service import StorageService, get_storage_service
 from app.services.llm_service import LLMService, get_llm_service
 from app.services.vector_service import VectorService, get_vector_service
@@ -17,16 +22,16 @@ from app.services.db_service import DatabaseService, get_db_service
 router = APIRouter(prefix="/api", tags=["upload"])
 
 
-@router.post("/upload", response_model=UploadResponse)
+@router.post("/upload", response_model=UploadBatchResponse)
 async def upload_file(
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     storage_service: StorageService = Depends(get_storage_service),
     llm_service: LLMService = Depends(get_llm_service),
     vector_service: VectorService = Depends(get_vector_service),
     db_service: DatabaseService = Depends(get_db_service),
 ):
     """
-    Upload a file (PDF/TXT), extract text, generate embeddings, and store vectors.
+    Upload one or more files (PDF, DOCX, MD, TXT), extract text, generate embeddings, and store vectors.
 
     Flow:
     1. Save file to temporary location
@@ -37,84 +42,108 @@ async def upload_file(
     6. Save document metadata to MongoDB
 
     Args:
-        file: File to upload (PDF or TXT)
+        files: Files to upload (PDF, DOCX, MD, or TXT)
         storage_service: Injected storage service
         llm_service: Injected LLM service
         vector_service: Injected vector service
         db_service: Injected database service
 
     Returns:
-        UploadResponse with file details and vector count
+        UploadBatchResponse with per-file details and vector counts
     """
     try:
-        # ============= 1. Validate File =============
-        allowed_extensions = {".pdf", ".txt"}
-        file_ext = Path(file.filename).suffix.lower()
+        if not files:
+            raise HTTPException(status_code=400, detail="At least one file is required.")
 
-        if file_ext not in allowed_extensions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Only PDF and TXT files are allowed. Received: {file_ext}",
-            )
+        uploaded_files = []
+        allowed_extensions = {".pdf", ".docx", ".md", ".txt"}
 
-        # ============= 2. Save File Temporarily =============
-        with tempfile.NamedTemporaryFile(
-            suffix=file_ext, delete=False
-        ) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_path = temp_file.name
+        # ============= 1. Validate Files =============
+        for file in files:
+            file_ext = Path(file.filename).suffix.lower()
 
-        file_size = len(content)
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Only PDF, DOCX, MD, and TXT files are allowed. Received: {file_ext}",
+                )
 
-        # ============= 3. Upload to R2 =============
-        r2_key = f"uploads/{datetime.utcnow().isoformat()}_{file.filename}"
-        upload_result = await storage_service.upload_file(temp_path, r2_key)
+        # ============= 2. Process Each File =============
+        for file in files:
+            file_ext = Path(file.filename).suffix.lower()
 
-        # ============= 4. Extract Text from File =============
-        text_content = await _extract_text(temp_path, file_ext)
+            with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as temp_file:
+                content = await file.read()
+                temp_file.write(content)
+                temp_path = temp_file.name
 
-        # ============= 5. Generate Embeddings =============
-        # TODO: Implement chunking for large documents
-        embeddings = await llm_service.generate_embeddings(text_content)
+            try:
+                file_size = len(content)
 
-        # ============= 6. Store Vectors in Pinecone =============
-        vector_id = f"{datetime.utcnow().isoformat()}_{file.filename}"
-        vectors_to_upsert = [
-            {
-                "id": vector_id,
-                "values": embeddings,
-                "metadata": {
+                # ============= 3. Upload to R2 =============
+                r2_key = f"uploads/{datetime.utcnow().isoformat()}_{file.filename}"
+                await storage_service.upload_file(temp_path, r2_key)
+
+                # ============= 4. Extract Text from File =============
+                text_content = await _extract_text(temp_path, file_ext)
+
+                # ============= 5. Generate Chunk Embeddings =============
+                chunks = _chunk_text(text_content)
+                vectors_to_upsert = []
+                uploaded_at = datetime.utcnow().isoformat()
+
+                for chunk_index, chunk_text in enumerate(chunks):
+                    embeddings = await llm_service.generate_embeddings(
+                        chunk_text, task_type="retrieval_document"
+                    )
+                    vector_id = (
+                        f"{datetime.utcnow().isoformat()}_{file.filename}_{chunk_index}"
+                    )
+                    vectors_to_upsert.append(
+                        {
+                            "id": vector_id,
+                            "values": embeddings,
+                            "metadata": {
+                                "file_name": file.filename,
+                                "r2_path": r2_key,
+                                "file_type": file_ext,
+                                "uploaded_at": uploaded_at,
+                                "chunk_index": chunk_index,
+                                "chunk_text": chunk_text,
+                            },
+                        }
+                    )
+
+                # ============= 6. Store Vectors in Pinecone =============
+                await vector_service.upsert_vectors(vectors_to_upsert)
+
+                # ============= 7. Save Metadata to MongoDB =============
+                document_metadata = {
                     "file_name": file.filename,
+                    "file_size": file_size,
                     "r2_path": r2_key,
-                    "file_type": file_ext,
+                    "vector_count": len(vectors_to_upsert),
                     "uploaded_at": datetime.utcnow().isoformat(),
-                },
-            }
-        ]
+                    "text_preview": text_content[:500],  # Store first 500 chars
+                }
 
-        await vector_service.upsert_vectors(vectors_to_upsert)
+                await db_service.save_document_metadata(document_metadata)
 
-        # ============= 7. Save Metadata to MongoDB =============
-        document_metadata = {
-            "file_name": file.filename,
-            "file_size": file_size,
-            "r2_path": r2_key,
-            "vector_id": vector_id,
-            "uploaded_at": datetime.utcnow().isoformat(),
-            "text_preview": text_content[:500],  # Store first 500 chars
-        }
+                uploaded_files.append(
+                    UploadResponse(
+                        file_name=file.filename,
+                        file_size=file_size,
+                        r2_path=r2_key,
+                        vector_count=len(vectors_to_upsert),
+                        status="success",
+                    )
+                )
+            finally:
+                Path(temp_path).unlink(missing_ok=True)
 
-        doc_id = await db_service.save_document_metadata(document_metadata)
-
-        # ============= 8. Cleanup =============
-        Path(temp_path).unlink()
-
-        return UploadResponse(
-            file_name=file.filename,
-            file_size=file_size,
-            r2_path=r2_key,
-            vector_count=1,  # Currently storing as single vector; adjust if chunking
+        return UploadBatchResponse(
+            files=uploaded_files,
+            total_files=len(uploaded_files),
             status="success",
         )
 
@@ -126,7 +155,7 @@ async def upload_file(
 
 async def _extract_text(file_path: str, file_ext: str) -> str:
     """
-    Extract text from PDF or TXT file.
+    Extract text from PDF, DOCX, MD, or TXT file.
 
     Args:
         file_path: Path to the file
@@ -138,17 +167,69 @@ async def _extract_text(file_path: str, file_ext: str) -> str:
     TODO: Implement proper PDF text extraction using PyPDF2 or similar
     """
     try:
-        if file_ext == ".txt":
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
+        if file_ext in {".txt", ".md"}:
+            with open(file_path, "rb") as f:
+                raw_bytes = f.read()
+
+            for encoding in ("utf-8", "utf-8-sig", "utf-16", "utf-16-le", "utf-16-be", "cp1252"):
+                try:
+                    return raw_bytes.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+
+            detected = from_bytes(raw_bytes).best()
+            if detected is not None:
+                return str(detected)
+
+            return raw_bytes.decode("utf-8", errors="replace")
+        elif file_ext == ".docx":
+            return _extract_docx_text(file_path)
         elif file_ext == ".pdf":
-            # TODO: Implement PDF extraction
-            # from PyPDF2 import PdfReader
-            # pdf = PdfReader(file_path)
-            # text = ""
-            # for page in pdf.pages:
-            #     text += page.extract_text()
-            # return text
-            return "[PDF extraction not yet implemented]"
+            reader = PdfReader(file_path)
+            pages = []
+            for page in reader.pages:
+                extracted_text = page.extract_text() or ""
+                if extracted_text.strip():
+                    pages.append(extracted_text)
+            return "\n".join(pages)
     except Exception as e:
         raise Exception(f"Error extracting text: {str(e)}")
+
+
+def _extract_docx_text(file_path: str) -> str:
+    """Extract paragraph text from a DOCX file using the Open XML document body."""
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+    with zipfile.ZipFile(file_path) as docx_archive:
+        document_xml = docx_archive.read("word/document.xml")
+
+    root = ET.fromstring(document_xml)
+    paragraphs = []
+
+    for paragraph in root.findall(".//w:p", namespace):
+        text_parts = [node.text for node in paragraph.findall(".//w:t", namespace) if node.text]
+        paragraph_text = "".join(text_parts).strip()
+        if paragraph_text:
+            paragraphs.append(paragraph_text)
+
+    return "\n".join(paragraphs)
+
+
+def _chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> list[str]:
+    """Split text into overlapping chunks for better retrieval accuracy."""
+    cleaned = text.strip()
+    if not cleaned:
+        return ["[No extractable text content]"]
+
+    chunks = []
+    start = 0
+    step = max(1, chunk_size - overlap)
+
+    while start < len(cleaned):
+        end = min(len(cleaned), start + chunk_size)
+        chunk = cleaned[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start += step
+
+    return chunks or ["[No extractable text content]"]
