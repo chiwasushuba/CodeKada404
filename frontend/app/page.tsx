@@ -1,144 +1,84 @@
+// app/page.tsx
 "use client";
-
-import { useMemo, useState } from "react";
-import { Loader2, SendHorizonal, TriangleAlert } from "lucide-react";
-import { sendChatMessage } from "@/lib/api";
-
-type ChatRole = "user" | "assistant";
-
-type ChatMessage = {
-  id: string;
-  role: ChatRole;
-  content: string;
-};
-
-function extractAssistantText(data: Record<string, unknown>) {
-  const candidates = [
-    data.response,
-    data.answer,
-    data.message,
-    data.content,
-    data.text,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate;
-    }
-  }
-
-  return JSON.stringify(data, null, 2);
-}
+import { useState } from 'react';
+import { Send, Bot, User } from 'lucide-react';
+import { sendChatMessage } from '@/lib/api';
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content:
-        "Central Brain online. Ask anything about project docs, team status, or uploaded knowledge.",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState([{ role: 'bot', content: 'Hello! I am your team\'s Central Brain. Ask me anything about the project.' }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const canSend = useMemo(
-    () => input.trim().length > 0 && !isSending,
-    [input, isSending],
-  );
-
-  const onSend = async () => {
-    const text = input.trim();
-    if (!text || isSending) {
-      return;
-    }
-
-    setError(null);
-    setIsSending(true);
-    setInput("");
-
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    const userMessage = input;
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setInput('');
+    setLoading(true);
 
     try {
-      const result = await sendChatMessage(text);
-      const assistantText = extractAssistantText(result);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: assistantText,
-        },
-      ]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setIsSending(false);
+      // In a real app, you'd extract the reply from the backend JSON response
+      // e.g., const res = await sendChatMessage(userMessage);
+      // const reply = res.answer;
+      
+      // Mocking for now to test UI
+      setTimeout(() => {
+        setMessages(prev => [...prev, { role: 'bot', content: "Here is what I found in the documentation..." }]);
+        setLoading(false);
+      }, 1000);
+      
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'bot', content: "Error: Backend is sleeping or unreachable." }]);
+      setLoading(false);
     }
-  };
-
-  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await onSend();
   };
 
   return (
-    <section className="mx-auto flex h-[calc(100vh-3rem)] w-full max-w-5xl flex-col">
-      <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">Chat Interface</h1>
-        <p className="subtle-text mt-1 text-sm">RAG-powered assistant for team context and docs.</p>
-      </header>
-
-      <div className="panel flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[80%] ${
-                message.role === "user"
-                  ? "ml-auto bg-sky-500/20 text-sky-100"
-                  : "bg-zinc-800/80 text-zinc-100"
-              }`}
-            >
-              {message.content}
+    <div className="flex flex-col h-full w-full bg-zinc-900">
+      <div className="flex-1 overflow-y-auto space-y-6 p-6 pb-24 max-w-4xl mx-auto w-full">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'bot' && (
+              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
+                <Bot className="w-5 h-5" />
+              </div>
+            )}
+            <div className={`p-4 rounded-2xl max-w-[80%] ${
+              msg.role === 'user' 
+              ? 'bg-zinc-100 text-zinc-900 rounded-br-none' 
+              : 'bg-zinc-800 border border-white/10 rounded-bl-none text-zinc-200'
+            }`}>
+              <p className="leading-relaxed">{msg.content}</p>
             </div>
-          ))}
-        </div>
+            {msg.role === 'user' && (
+              <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+            )}
+          </div>
+        ))}
+        {loading && <div className="text-zinc-500 animate-pulse flex gap-2 items-center"><Bot className="w-5 h-5"/> Brain is thinking...</div>}
+      </div>
 
-        <div className="border-t border-zinc-800 p-3 sm:p-4">
-          {error ? (
-            <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">
-              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
-          <form onSubmit={onSubmit} className="flex items-center gap-2">
-            <input
-              className="field"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask Central Brain..."
-              aria-label="Chat message"
-            />
-            <button
-              type="submit"
-              disabled={!canSend}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500 text-zinc-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Send"
-            >
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
-            </button>
-          </form>
+      <div className="fixed bottom-0 right-0 left-64 p-6">
+        <div className="bg-zinc-800 border border-white/10 p-2 rounded-2xl flex gap-2 shadow-2xl backdrop-blur-xl max-w-4xl mx-auto">
+          <input 
+            type="text" 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Ask about the project status, code, or docs..." 
+            className="flex-1 bg-transparent border-none focus:outline-none px-4 text-zinc-100 placeholder-zinc-500"
+          />
+          <button 
+            onClick={handleSend}
+            disabled={loading || !input}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-xl transition disabled:opacity-50"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

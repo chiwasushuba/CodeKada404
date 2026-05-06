@@ -51,6 +51,8 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+If `uvicorn` is still not found, make sure the virtual environment is activated and rerun the install command in that environment.
+
 ### 2. Configure Environment Variables
 
 Copy `.env.example` to `.env`:
@@ -87,7 +89,7 @@ python run.py
 
 Or with uvicorn directly:
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 **Production (Render):**

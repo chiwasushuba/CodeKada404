@@ -1,64 +1,43 @@
+// components/Sidebar.tsx
 "use client";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Brain, MessageSquare, Activity, Database } from 'lucide-react';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { BrainCircuit, Files, LayoutDashboard, MessageSquare } from "lucide-react";
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
-
-const navItems: NavItem[] = [
-  { label: "Chat", href: "/", icon: MessageSquare },
-  { label: "Status Dashboard", href: "/status", icon: LayoutDashboard },
-  { label: "Knowledge Base", href: "/knowledge", icon: Files },
-];
-
-export function Sidebar() {
+export default function Sidebar() {
   const pathname = usePathname();
+  
+  const navItems = [
+    { name: 'Chat', href: '/', icon: MessageSquare },
+    { name: 'Team Status', href: '/status', icon: Activity },
+    { name: 'Knowledge Base', href: '/knowledge', icon: Database },
+  ];
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-zinc-800/80 bg-zinc-950/90 p-5 md:block">
-      <div className="panel flex h-full flex-col p-4">
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
-          <div className="rounded-lg bg-sky-500/20 p-2 text-sky-300">
-            <BrainCircuit className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold tracking-wide text-zinc-200">Central Brain</p>
-            <p className="text-xs text-zinc-500">RAG Console</p>
-          </div>
+    <div className="w-64 bg-zinc-950 border-r border-white/10 h-screen flex flex-col p-4 text-zinc-300">
+      <div className="flex items-center gap-3 mb-10 px-2 mt-4">
+        <div className="p-2 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-lg">
+          <Brain className="w-6 h-6 text-white" />
         </div>
-
-        <nav className="space-y-2">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
-                  isActive
-                    ? "bg-sky-500/20 text-sky-200"
-                    : "text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
-          FastAPI backend expected at <span className="text-zinc-200">NEXT_PUBLIC_API_URL</span>
-        </div>
+        <h1 className="text-xl font-bold text-white tracking-wide">Central Brain</h1>
       </div>
-    </aside>
+      
+      <nav className="flex flex-col gap-2">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link key={item.name} href={item.href}>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive ? 'bg-white/10 text-white' : 'hover:bg-white/5 hover:text-white'
+              }`}>
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{item.name}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
