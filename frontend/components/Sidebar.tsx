@@ -20,7 +20,7 @@ export default function Sidebar() {
         <div className="p-2 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-lg">
           <Brain className="w-6 h-6 text-white" />
         </div>
-        <h1 className="text-xl font-bold text-white tracking-wide">Central Brain</h1>
+        <h1 className="text-xl font-bold text-white tracking-wide">COBE</h1>
       </div>
       
       <nav className="flex flex-col gap-2">

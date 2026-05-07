@@ -4,6 +4,7 @@ const API_URL = '';
 export type KnowledgeFile = {
   id: string;
   filename: string;
+  r2_path: string;
   ai_context: string;
   is_verified: boolean;
 };
@@ -164,6 +165,27 @@ export async function updateFileContext(fileId: string, manualContext: string): 
       }
     } catch {
       detail = `Failed to update context with status ${res.status}`;
+    }
+    throw new Error(detail);
+  }
+
+  return res.json();
+}
+
+export async function deleteKnowledgeFileContext(fileId: string): Promise<{ id: string; r2_path: string; deleted_vectors: number; status: string }> {
+  const res = await fetch(`${API_URL}/api/knowledge/${fileId}`, {
+    method: 'DELETE',
+  });
+
+  if (!res.ok) {
+    let detail = 'Failed to delete context';
+    try {
+      const errorPayload = await res.json();
+      if (typeof errorPayload?.detail === 'string') {
+        detail = errorPayload.detail;
+      }
+    } catch {
+      detail = `Failed to delete context with status ${res.status}`;
     }
     throw new Error(detail);
   }

@@ -65,6 +65,7 @@ class KnowledgeFileItem(BaseModel):
 
     id: str = Field(..., description="Unique file ID from MongoDB")
     filename: str = Field(..., description="Uploaded file name")
+    r2_path: str = Field(default="", description="Object key in Cloudflare R2")
     ai_context: str = Field(..., description="AI-generated or manually updated context")
     is_verified: bool = Field(
         default=False, description="Whether the context has been verified by a user"
@@ -86,6 +87,15 @@ class VerifyKnowledgeFileResponse(BaseModel):
 
     id: str = Field(..., description="Updated file ID")
     is_verified: bool = Field(..., description="Verification status")
+    status: str = Field(default="success", description="Response status")
+
+
+class DeleteKnowledgeFileResponse(BaseModel):
+    """Response after deleting a knowledge file context."""
+
+    id: str = Field(..., description="Deleted file ID")
+    r2_path: str = Field(default="", description="Associated R2 object key")
+    deleted_vectors: int = Field(default=0, description="Number of Pinecone vectors deleted")
     status: str = Field(default="success", description="Response status")
 
 

@@ -290,6 +290,33 @@ class DatabaseService:
             "r2_path": result.get("r2_path", ""),
         }
 
+    @classmethod
+    async def delete_knowledge_file_by_id(cls, file_id: str) -> dict | None:
+        """Delete a knowledge file record by ID."""
+        if cls.database is None:
+            return cls.mock_documents.pop(file_id, None)
+
+        documents_collection = cls.database["documents"]
+        query = None
+
+        if ObjectId:
+            try:
+                query = {"_id": ObjectId(file_id)}
+            except Exception:
+                query = {"id": file_id}
+        else:
+            query = {"id": file_id}
+
+        result = await documents_collection.find_one_and_delete(query)
+        if not result:
+            return None
+
+        return {
+            "id": str(result.get("_id")),
+            "file_name": result.get("file_name", "Unknown"),
+            "r2_path": result.get("r2_path", ""),
+        }
+
 
 # Dependency injection function
 async def get_db_service() -> DatabaseService:

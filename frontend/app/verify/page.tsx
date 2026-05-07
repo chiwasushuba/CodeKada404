@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, FileText, Pencil, RefreshCcw, Save, X } from 'lucide-react';
 import {
+  deleteKnowledgeFileContext,
+  getUploadedFiles,
   getKnowledgeFiles,
   KnowledgeFile,
   updateFileContext,
@@ -29,12 +31,37 @@ export default function VerifyPage() {
     setError(null);
 
     try {
-      const response = await getKnowledgeFiles();
-      setFiles(response.files ?? []);
+      const [knowledgeResponse, uploadResponse] = await Promise.all([
+        getKnowledgeFiles(),
+        getUploadedFiles(),
+      ]);
+
+      const uploadedFiles = uploadResponse.files ?? [];
+      const uploadedR2Paths = new Set(uploadedFiles.map((file: any) => file.r2_path));
+      const uploadedNames = new Set(uploadedFiles.map((file: any) => file.file_name));
+      const nextFiles = knowledgeResponse.files ?? [];
+
+      const orphanedFiles = nextFiles.filter((file: any) => {
+        if (file.r2_path && uploadedR2Paths.has(file.r2_path)) {
+          return false;
+        }
+
+        return !uploadedNames.has(file.filename);
+      });
+
+      let resolvedFiles = nextFiles;
+
+      if (orphanedFiles.length > 0) {
+        await Promise.all(orphanedFiles.map((file: any) => deleteKnowledgeFileContext(file.id)));
+        const refreshed = await getKnowledgeFiles();
+        resolvedFiles = refreshed.files ?? [];
+      }
+
+      setFiles(resolvedFiles);
 
       setEditing((prev) => {
         const next: EditingState = { ...prev };
-        for (const file of response.files ?? []) {
+        for (const file of resolvedFiles) {
           if (!next[file.id]) {
             next[file.id] = { open: false, value: file.ai_context };
           } else if (!next[file.id].open) {

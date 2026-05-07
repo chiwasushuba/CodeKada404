@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.schemas import (
+    DeleteKnowledgeFileResponse,
     KnowledgeFileItem,
     KnowledgeFilesResponse,
     VerifyKnowledgeFileResponse,
@@ -31,6 +32,7 @@ async def get_knowledge_files(
             KnowledgeFileItem(
                 id=str(record.get("id", "")),
                 filename=record.get("file_name", "Unknown"),
+                r2_path=record.get("r2_path", ""),
                 ai_context=record.get("ai_context", ""),
                 is_verified=bool(record.get("is_verified", False)),
             )
@@ -62,6 +64,43 @@ async def verify_knowledge_context(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to verify context: {str(e)}")
+
+
+@router.delete("/knowledge/{file_id}", response_model=DeleteKnowledgeFileResponse)
+async def delete_knowledge_context(
+    file_id: str,
+    db_service: DatabaseService = Depends(get_db_service),
+    vector_service: VectorService = Depends(get_vector_service),
+):
+    """Delete a knowledge file context and its vectors."""
+    try:
+        existing = await db_service.get_knowledge_file_by_id(file_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Knowledge file not found")
+
+        r2_path = existing.get("r2_path", "")
+        deleted_vectors = 0
+        if r2_path:
+            vector_delete_result = await vector_service.delete_vectors_by_filter(
+                {"r2_path": {"$eq": r2_path}}
+            )
+            if isinstance(vector_delete_result, dict):
+                deleted_vectors = int(vector_delete_result.get("deleted_count", 0))
+
+        deleted = await db_service.delete_knowledge_file_by_id(file_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Knowledge file not found")
+
+        return DeleteKnowledgeFileResponse(
+            id=str(deleted.get("id", file_id)),
+            r2_path=r2_path,
+            deleted_vectors=deleted_vectors,
+            status="success",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete context: {str(e)}")
 
 
 @router.patch("/knowledge/{file_id}/update-context", response_model=UpdateKnowledgeContextResponse)

@@ -63,6 +63,7 @@ export default function KnowledgePage() {
 
       setDone(true);
       setFiles([]);
+      await loadUploadedFiles();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'One or more uploads failed.';
       setError(message);
@@ -81,7 +82,7 @@ export default function KnowledgePage() {
 
     try {
       await deleteUploadedFile(r2Path);
-      setUploadedFiles((previousFiles) => previousFiles.filter((file) => file.r2_path !== r2Path));
+      await loadUploadedFiles();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete file.');
     } finally {
@@ -168,12 +169,20 @@ export default function KnowledgePage() {
               <p className="text-sm text-zinc-400">Files currently stored in R2 and indexed by the backend.</p>
             </div>
             <div className="text-sm text-zinc-500">
-              {loadingFiles ? 'Loading...' : `${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'}`}
+              {loadingFiles ? 'Refreshing list...' : `${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'}`}
             </div>
           </div>
 
           <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-            {uploadedFiles.length === 0 && !loadingFiles ? (
+            {loadingFiles ? (
+              <div className="space-y-3 rounded-2xl border border-dashed border-zinc-700 px-4 py-6">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-zinc-700/70" />
+                <div className="h-10 animate-pulse rounded-xl bg-zinc-800/80" />
+                <div className="h-10 animate-pulse rounded-xl bg-zinc-800/80" />
+                <div className="h-10 animate-pulse rounded-xl bg-zinc-800/80" />
+                <p className="pt-2 text-sm text-zinc-500">Updating uploaded files...</p>
+              </div>
+            ) : uploadedFiles.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-zinc-700 px-4 py-6 text-sm text-zinc-500">
                 No uploaded files found yet.
               </div>
