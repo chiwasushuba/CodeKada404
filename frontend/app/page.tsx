@@ -5,7 +5,9 @@ import { Send, Bot, User } from 'lucide-react';
 import { sendChatMessage } from '@/lib/api';
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState([{ role: 'bot', content: 'Hello! I am your team\'s Central Brain. Ask me anything about the project.' }]);
+  const [messages, setMessages] = useState([
+    { role: 'bot', content: 'Hello! I am Central Brain for your team. Ask me anything about the project.' },
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
