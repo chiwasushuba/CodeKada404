@@ -317,6 +317,32 @@ class DatabaseService:
             "r2_path": result.get("r2_path", ""),
         }
 
+    @classmethod
+    async def delete_documents_by_r2_path(cls, r2_path: str) -> dict:
+        """Delete all documents whose r2_path matches the provided key.
+
+        Returns a dict with deleted_count and deleted_ids (when available).
+        """
+        deleted_ids = []
+        if cls.database is None:
+            # Mock mode: remove any mock documents matching the r2_path
+            to_delete = [doc_id for doc_id, doc in cls.mock_documents.items() if doc.get("r2_path") == r2_path]
+            for doc_id in to_delete:
+                cls.mock_documents.pop(doc_id, None)
+                deleted_ids.append(doc_id)
+            return {"deleted_count": len(deleted_ids), "deleted_ids": deleted_ids}
+
+        documents_collection = cls.database["documents"]
+        # Find documents to collect IDs (if ObjectId is available, convert)
+        cursor = documents_collection.find({"r2_path": r2_path})
+        found = await cursor.to_list(length=1000)
+        for doc in found:
+            deleted_ids.append(str(doc.get("_id")))
+
+        result = await documents_collection.delete_many({"r2_path": r2_path})
+        deleted_count = int(getattr(result, "deleted_count", 0) or 0)
+        return {"deleted_count": deleted_count, "deleted_ids": deleted_ids}
+
 
 # Dependency injection function
 async def get_db_service() -> DatabaseService:

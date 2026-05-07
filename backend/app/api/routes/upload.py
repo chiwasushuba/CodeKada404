@@ -59,6 +59,7 @@ async def delete_uploaded_file(
     r2_path: str,
     storage_service: StorageService = Depends(get_storage_service),
     vector_service: VectorService = Depends(get_vector_service),
+    db_service: DatabaseService = Depends(get_db_service),
 ):
     """Delete a single uploaded file and its indexed vectors."""
     try:
@@ -73,10 +74,21 @@ async def delete_uploaded_file(
         if isinstance(vector_delete_result, dict):
             deleted_vectors = int(vector_delete_result.get("deleted_count", 0))
 
+        # Also remove any knowledge DB records that reference this r2_path for consistency
+        deleted_knowledge_records = 0
+        try:
+            db_delete_result = await db_service.delete_documents_by_r2_path(r2_path)
+            if isinstance(db_delete_result, dict):
+                deleted_knowledge_records = int(db_delete_result.get("deleted_count", 0))
+        except Exception:
+            # Don't fail the whole delete if DB cleanup fails; just log and continue
+            deleted_knowledge_records = 0
+
         return DeleteFileResponse(
             file_name=file_name,
             r2_path=r2_path,
             deleted_vectors=deleted_vectors,
+            deleted_knowledge_records=deleted_knowledge_records,
             status="success",
         )
     except Exception as e:

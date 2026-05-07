@@ -57,6 +57,9 @@ class DeleteFileResponse(BaseModel):
     deleted_vectors: int = Field(
         default=0, description="Number of Pinecone vectors deleted"
     )
+    deleted_knowledge_records: int = Field(
+        default=0, description="Number of knowledge DB records deleted for this file"
+    )
     status: str = Field(default="success", description="Deletion status")
 
 
