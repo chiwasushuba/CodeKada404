@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "app.main:app",
-        host=render_host,     # CRITICAL: Forces 0.0.0.0 on Render
-        port=render_port,     # CRITICAL: Uses Render's dynamic port
+        host=render_host,     # Safely toggles between 0.0.0.0 and your local host
+        port=render_port,     # Safely toggles between Render's port and local 8000
         log_level=settings.log_level,
         reload=settings.reload, 
     )
