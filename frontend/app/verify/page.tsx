@@ -7,7 +7,7 @@ import {
   KnowledgeFile,
   updateFileContext,
   verifyFileContext,
-} from '../../lib/api';
+} from '../../library/api';
 
 type EditingState = {
   [fileId: string]: {

@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { UploadCloud, FileText, CheckCircle, X } from 'lucide-react';
-import { deleteUploadedFile, getUploadedFiles, uploadDocument } from '../../lib/api';
+import { deleteUploadedFile, getUploadedFiles, uploadDocument } from '../../library/api';
 
 type UploadedFileItem = {
   file_name: string;

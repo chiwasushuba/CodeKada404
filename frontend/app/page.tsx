@@ -2,7 +2,7 @@
 "use client";
 import { useState } from 'react';
 import { Send, Bot, User } from 'lucide-react';
-import { sendChatMessage } from '../lib/api';
+import { sendChatMessage } from '../library/api';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState([
