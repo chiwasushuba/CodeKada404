@@ -24,7 +24,22 @@ export default function KnowledgePage() {
     setLoadingFiles(true);
     try {
       const response = await getUploadedFiles();
-      setUploadedFiles(response.files ?? []);
+      const responseFiles = response.files ?? [];
+
+      // Deduplicate by r2_path, keeping the most recently uploaded entry when duplicates exist.
+      const map = new Map<string, UploadedFileItem>();
+      for (const f of responseFiles) {
+        const existing = map.get(f.r2_path);
+        if (!existing) {
+          map.set(f.r2_path, f);
+        } else {
+          const existingDate = new Date(existing.uploaded_at).getTime();
+          const newDate = new Date(f.uploaded_at).getTime();
+          if (newDate > existingDate) map.set(f.r2_path, f);
+        }
+      }
+
+      setUploadedFiles(Array.from(map.values()));
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : 'Failed to load uploaded files.');
     } finally {

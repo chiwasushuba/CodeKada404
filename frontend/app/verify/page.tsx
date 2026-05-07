@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, FileText, Pencil, RefreshCcw, Save, X } from 'lucide-react';
 import {
-  deleteKnowledgeFileContext,
   getUploadedFiles,
   getKnowledgeFiles,
   KnowledgeFile,
@@ -25,6 +24,7 @@ export default function VerifyPage() {
   const [editing, setEditing] = useState<EditingState>({});
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [missingFiles, setMissingFiles] = useState<Set<string>>(new Set());
 
   const loadKnowledgeFiles = async () => {
     setLoading(true);
@@ -49,19 +49,12 @@ export default function VerifyPage() {
         return !uploadedNames.has(file.filename);
       });
 
-      let resolvedFiles = nextFiles;
-
-      if (orphanedFiles.length > 0) {
-        await Promise.all(orphanedFiles.map((file: any) => deleteKnowledgeFileContext(file.id)));
-        const refreshed = await getKnowledgeFiles();
-        resolvedFiles = refreshed.files ?? [];
-      }
-
-      setFiles(resolvedFiles);
+      setFiles(nextFiles);
+      setMissingFiles(new Set(orphanedFiles.map((file: any) => file.id)));
 
       setEditing((prev) => {
         const next: EditingState = { ...prev };
-        for (const file of resolvedFiles) {
+        for (const file of nextFiles) {
           if (!next[file.id]) {
             next[file.id] = { open: false, value: file.ai_context };
           } else if (!next[file.id].open) {
@@ -215,6 +208,12 @@ export default function VerifyPage() {
                     </span>
                   </div>
 
+                  {missingFiles.has(file.id) ? (
+                    <div className="mb-4 inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                      File deleted, context preserved
+                    </div>
+                  ) : null}
+
                   <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4 text-sm leading-7 text-zinc-200">
                     {file.ai_context || 'No AI context available yet.'}
                   </div>
@@ -223,7 +222,7 @@ export default function VerifyPage() {
                     <button
                       type="button"
                       onClick={() => void handleVerify(file.id)}
-                      disabled={file.is_verified || isVerifying || isSaving}
+                      disabled={file.is_verified || isVerifying || isSaving || missingFiles.has(file.id)}
                       className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                         file.is_verified
                           ? 'cursor-default border border-emerald-500/30 bg-emerald-500/15 text-emerald-200'
@@ -237,7 +236,7 @@ export default function VerifyPage() {
                     <button
                       type="button"
                       onClick={() => openEditor(file)}
-                      disabled={isSaving || isVerifying}
+                      disabled={isSaving || isVerifying || missingFiles.has(file.id)}
                       className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-indigo-400/60 hover:text-indigo-200 disabled:opacity-60"
                     >
                       <Pencil className="h-4 w-4" />
