@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.services.db_service import DatabaseService
 from app.models.schemas import HealthResponse
-from app.api.routes import upload_router, chat_router, status_router
+from app.api.routes import upload_router, chat_router, status_router, knowledge_router
 
 
 # ============= STARTUP & SHUTDOWN EVENTS =============
@@ -72,6 +72,7 @@ app.add_middleware(
 app.include_router(upload_router)
 app.include_router(chat_router)
 app.include_router(status_router)
+app.include_router(knowledge_router)
 
 
 # ============= HEALTH CHECK ENDPOINT =============

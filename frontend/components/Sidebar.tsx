@@ -2,7 +2,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Brain, MessageSquare, Activity, Database } from 'lucide-react';
+import { Brain, MessageSquare, Activity, Database, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -11,6 +11,7 @@ export default function Sidebar() {
     { name: 'Chat', href: '/', icon: MessageSquare },
     { name: 'Team Status', href: '/status', icon: Activity },
     { name: 'Knowledge Base', href: '/knowledge', icon: Database },
+    { name: 'Context Verification', href: '/verify', icon: ShieldCheck },
   ];
 
   return (

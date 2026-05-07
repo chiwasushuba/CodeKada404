@@ -179,6 +179,13 @@ async def upload_file(
                 await vector_service.upsert_vectors(vectors_to_upsert)
 
                 # ============= 7. Save Metadata to MongoDB =============
+                ai_context = text_content[:1000]
+                try:
+                    ai_context = await llm_service.summarize_text(text_content[:8000])
+                except Exception:
+                    # Keep upload resilient if summarization fails.
+                    ai_context = text_content[:1000]
+
                 document_metadata = {
                     "file_name": file.filename,
                     "file_size": file_size,
@@ -186,6 +193,8 @@ async def upload_file(
                     "vector_count": len(vectors_to_upsert),
                     "uploaded_at": datetime.utcnow().isoformat(),
                     "text_preview": text_content[:500],  # Store first 500 chars
+                    "ai_context": ai_context,
+                    "is_verified": False,
                 }
 
                 await db_service.save_document_metadata(document_metadata)

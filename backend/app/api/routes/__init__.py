@@ -6,5 +6,6 @@ Exports routers for all endpoints.
 from app.api.routes.upload import router as upload_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.status import router as status_router
+from app.api.routes.knowledge import router as knowledge_router
 
-__all__ = ["upload_router", "chat_router", "status_router"]
+__all__ = ["upload_router", "chat_router", "status_router", "knowledge_router"]

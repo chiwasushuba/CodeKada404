@@ -60,6 +60,51 @@ class DeleteFileResponse(BaseModel):
     status: str = Field(default="success", description="Deletion status")
 
 
+class KnowledgeFileItem(BaseModel):
+    """Single knowledge file entry for context verification."""
+
+    id: str = Field(..., description="Unique file ID from MongoDB")
+    filename: str = Field(..., description="Uploaded file name")
+    ai_context: str = Field(..., description="AI-generated or manually updated context")
+    is_verified: bool = Field(
+        default=False, description="Whether the context has been verified by a user"
+    )
+
+
+class KnowledgeFilesResponse(BaseModel):
+    """Response containing knowledge files for verification."""
+
+    files: list[KnowledgeFileItem] = Field(
+        default_factory=list, description="Knowledge files and their context status"
+    )
+    total_files: int = Field(..., description="Total knowledge file count")
+    status: str = Field(default="success", description="Response status")
+
+
+class VerifyKnowledgeFileResponse(BaseModel):
+    """Response after marking a file context as verified."""
+
+    id: str = Field(..., description="Updated file ID")
+    is_verified: bool = Field(..., description="Verification status")
+    status: str = Field(default="success", description="Response status")
+
+
+class UpdateKnowledgeContextRequest(BaseModel):
+    """Request payload for manual context updates."""
+
+    manual_context: str = Field(..., min_length=1, description="Updated context text")
+
+
+class UpdateKnowledgeContextResponse(BaseModel):
+    """Response after manual context update and re-embedding."""
+
+    id: str = Field(..., description="Updated file ID")
+    ai_context: str = Field(..., description="Persisted context text")
+    is_verified: bool = Field(..., description="Verification status after update")
+    reembedded_chunks: int = Field(..., description="Number of chunks re-embedded in Pinecone")
+    status: str = Field(default="success", description="Response status")
+
+
 # ============= CHAT ENDPOINT =============
 
 
